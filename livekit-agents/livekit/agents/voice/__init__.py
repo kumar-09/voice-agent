@@ -22,7 +22,13 @@ from .room_io import (
     _ParticipantTranscriptionOutput,
 )
 from .speech_handle import SpeechHandle
-from .transcription import TranscriptSynchronizer
+from .transcription import (
+    DEFAULT_IGNORE_WORDS,
+    DEFAULT_INTERRUPT_KEYWORDS,
+    InterruptionFilter,
+    InterruptionFilterConfig,
+    TranscriptSynchronizer,
+)
 
 __all__ = [
     "AgentSession",
@@ -45,6 +51,10 @@ __all__ = [
     "FunctionToolsExecutedEvent",
     "AgentFalseInterruptionEvent",
     "TranscriptSynchronizer",
+    "InterruptionFilter",
+    "InterruptionFilterConfig",
+    "DEFAULT_IGNORE_WORDS",
+    "DEFAULT_INTERRUPT_KEYWORDS",
     "io",
     "room_io",
     "run_result",
