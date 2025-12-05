@@ -1228,20 +1228,15 @@ class AgentActivity(RecognitionHooks):
             # ignore if realtime model has turn detection enabled
             return
 
-        if (
-            self.stt is not None
-            and opt.min_interruption_words > 0
-            and self._audio_recognition is not None
-        ):
-            text = self._audio_recognition.current_transcript
-
-            # TODO(long): better word splitting for multi-language
-            if len(split_words(text, split_character=True)) < opt.min_interruption_words:
-                return
-
-        # Use intelligent interruption filter to decide if this should interrupt
         if self.stt is not None and self._audio_recognition is not None:
             text = self._audio_recognition.current_transcript
+
+            if opt.min_interruption_words > 0:
+                # TODO(long): better word splitting for multi-language
+                if len(split_words(text, split_character=True)) < opt.min_interruption_words:
+                    return
+
+            # Use intelligent interruption filter to decide if this should interrupt
             if text and not self._should_interrupt_by_transcript(text):
                 # This is a passive acknowledgement (e.g., "yeah", "ok"), ignore it
                 logger.debug(

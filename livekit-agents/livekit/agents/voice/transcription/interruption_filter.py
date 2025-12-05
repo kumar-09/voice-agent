@@ -267,15 +267,3 @@ class InterruptionFilter:
                 return False
 
         return True
-
-
-# Singleton instance with default configuration
-_default_filter: InterruptionFilter | None = None
-
-
-def get_default_filter() -> InterruptionFilter:
-    """Get the default interruption filter instance."""
-    global _default_filter
-    if _default_filter is None:
-        _default_filter = InterruptionFilter()
-    return _default_filter
