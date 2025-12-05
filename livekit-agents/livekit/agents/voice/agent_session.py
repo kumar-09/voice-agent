@@ -89,6 +89,9 @@ class AgentSessionOptions:
     preemptive_generation: bool
     tts_text_transforms: Sequence[TextTransforms] | None
     ivr_detection: bool
+    interruption_filter_enabled: bool
+    interruption_ignore_words: frozenset[str] | None
+    interruption_keywords: frozenset[str] | None
 
 
 Userdata_T = TypeVar("Userdata_T")
@@ -161,6 +164,10 @@ class AgentSession(rtc.EventEmitter[EventTypes], Generic[Userdata_T]):
         ivr_detection: bool = False,
         conn_options: NotGivenOr[SessionConnectOptions] = NOT_GIVEN,
         loop: asyncio.AbstractEventLoop | None = None,
+        # Intelligent interruption handling options
+        interruption_filter_enabled: bool = True,
+        interruption_ignore_words: NotGivenOr[frozenset[str] | None] = NOT_GIVEN,
+        interruption_keywords: NotGivenOr[frozenset[str] | None] = NOT_GIVEN,
         # deprecated
         agent_false_interruption_timeout: NotGivenOr[float | None] = NOT_GIVEN,
     ) -> None:
@@ -249,6 +256,18 @@ class AgentSession(rtc.EventEmitter[EventTypes], Generic[Userdata_T]):
                 stt, llm, and tts.
             loop (asyncio.AbstractEventLoop, optional): Event loop to bind the
                 session to. Falls back to :pyfunc:`asyncio.get_event_loop()`.
+            interruption_filter_enabled (bool): Whether to enable intelligent interruption
+                filtering. When enabled, the agent will distinguish between passive
+                acknowledgements (e.g., "yeah", "ok", "hmm") and active interruptions
+                (e.g., "stop", "wait", "no") when the agent is speaking. Passive
+                acknowledgements will be ignored, while active interruptions will
+                stop the agent. Default ``True``.
+            interruption_ignore_words (frozenset[str], optional): Set of words/phrases
+                to ignore when the agent is speaking. These are passive acknowledgements
+                like "yeah", "ok", "hmm". If NOT_GIVEN, uses default list.
+            interruption_keywords (frozenset[str], optional): Set of keywords that
+                always trigger an interruption, even when mixed with ignore words.
+                Examples: "stop", "wait", "no". If NOT_GIVEN, uses default list.
         """
         super().__init__()
         self._loop = loop or asyncio.get_event_loop()
@@ -287,6 +306,13 @@ class AgentSession(rtc.EventEmitter[EventTypes], Generic[Userdata_T]):
             ivr_detection=ivr_detection,
             use_tts_aligned_transcript=use_tts_aligned_transcript
             if is_given(use_tts_aligned_transcript)
+            else None,
+            interruption_filter_enabled=interruption_filter_enabled,
+            interruption_ignore_words=interruption_ignore_words
+            if is_given(interruption_ignore_words)
+            else None,
+            interruption_keywords=interruption_keywords
+            if is_given(interruption_keywords)
             else None,
         )
         self._conn_options = conn_options or SessionConnectOptions()

@@ -75,6 +75,10 @@ from .generation import (
     update_instructions,
 )
 from .speech_handle import SpeechHandle
+from .transcription.interruption_filter import (
+    InterruptionFilter,
+    InterruptionFilterConfig,
+)
 
 if TYPE_CHECKING:
     from ..llm import mcp
@@ -141,6 +145,9 @@ class AgentActivity(RecognitionHooks):
 
         self._on_enter_task: asyncio.Task | None = None
         self._on_exit_task: asyncio.Task | None = None
+
+        # Initialize interruption filter with session options
+        self._interruption_filter = self._create_interruption_filter()
 
         if (
             isinstance(self.llm, llm.RealtimeModel)
@@ -235,6 +242,53 @@ class AgentActivity(RecognitionHooks):
             )
 
         return mode
+
+    def _create_interruption_filter(self) -> InterruptionFilter:
+        """Create an interruption filter based on session options."""
+        from .transcription.interruption_filter import (
+            DEFAULT_IGNORE_WORDS,
+            DEFAULT_INTERRUPT_KEYWORDS,
+        )
+
+        opts = self._session.options
+        config = InterruptionFilterConfig(
+            enabled=opts.interruption_filter_enabled,
+            ignore_words=opts.interruption_ignore_words
+            if opts.interruption_ignore_words is not None
+            else DEFAULT_IGNORE_WORDS,
+            interrupt_keywords=opts.interruption_keywords
+            if opts.interruption_keywords is not None
+            else DEFAULT_INTERRUPT_KEYWORDS,
+        )
+        return InterruptionFilter(config)
+
+    @property
+    def interruption_filter(self) -> InterruptionFilter:
+        """Get the interruption filter for this activity."""
+        return self._interruption_filter
+
+    def _should_interrupt_by_transcript(self, transcript: str) -> bool:
+        """Check if the transcript should trigger an interruption.
+
+        This method uses the interruption filter to determine if the user's speech
+        should interrupt the agent based on the content and the agent's speaking state.
+
+        Args:
+            transcript: The user's speech transcript.
+
+        Returns:
+            True if the agent should be interrupted, False otherwise.
+        """
+        # Determine if agent is currently speaking
+        agent_is_speaking = (
+            self._current_speech is not None
+            and not self._current_speech.interrupted
+            and self._current_speech.allow_interruptions
+        )
+
+        return self._interruption_filter.should_interrupt(
+            transcript, agent_is_speaking=agent_is_speaking
+        )
 
     @property
     def scheduling_paused(self) -> bool:
@@ -1174,15 +1228,21 @@ class AgentActivity(RecognitionHooks):
             # ignore if realtime model has turn detection enabled
             return
 
-        if (
-            self.stt is not None
-            and opt.min_interruption_words > 0
-            and self._audio_recognition is not None
-        ):
+        if self.stt is not None and self._audio_recognition is not None:
             text = self._audio_recognition.current_transcript
 
-            # TODO(long): better word splitting for multi-language
-            if len(split_words(text, split_character=True)) < opt.min_interruption_words:
+            if opt.min_interruption_words > 0:
+                # TODO(long): better word splitting for multi-language
+                if len(split_words(text, split_character=True)) < opt.min_interruption_words:
+                    return
+
+            # Use intelligent interruption filter to decide if this should interrupt
+            if text and not self._should_interrupt_by_transcript(text):
+                # This is a passive acknowledgement (e.g., "yeah", "ok"), ignore it
+                logger.debug(
+                    "ignoring passive acknowledgement during agent speech",
+                    extra={"transcript": text},
+                )
                 return
 
         if self._rt_session is not None:
@@ -1377,6 +1437,23 @@ class AgentActivity(RecognitionHooks):
         ):
             self._cancel_preemptive_generation()
             # avoid interruption if the new_transcript is too short
+            return False
+
+        # Use intelligent interruption filter for end-of-turn decisions
+        if (
+            self.stt is not None
+            and self._turn_detection != "manual"
+            and self._current_speech is not None
+            and self._current_speech.allow_interruptions
+            and not self._current_speech.interrupted
+            and not self._should_interrupt_by_transcript(info.new_transcript)
+        ):
+            self._cancel_preemptive_generation()
+            # This is a passive acknowledgement, don't interrupt
+            logger.debug(
+                "ignoring end-of-turn for passive acknowledgement during agent speech",
+                extra={"transcript": info.new_transcript},
+            )
             return False
 
         old_task = self._user_turn_completed_atask
