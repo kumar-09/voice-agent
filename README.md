@@ -38,6 +38,7 @@ agents that can see, hear, and understand.
 - **Telephony integration**: Works seamlessly with LiveKit's [telephony stack](https://docs.livekit.io/sip/), allowing your agent to make calls to or receive calls from phones.
 - **Exchange data with clients**: Use [RPCs](https://docs.livekit.io/home/client/data/rpc/) and other [Data APIs](https://docs.livekit.io/home/client/data/) to seamlessly exchange data with clients.
 - **Semantic turn detection**: Uses a transformer model to detect when a user is done with their turn, helps to reduce interruptions.
+- **Intelligent interruption handling**: Context-aware filtering that distinguishes between passive acknowledgements (e.g., "yeah", "ok") and active interruptions (e.g., "stop", "wait") when the agent is speaking.
 - **MCP support**: Native support for MCP. Integrate tools provided by MCP servers with one loc.
 - **Builtin test framework**: Write tests and use judges to ensure your agent is performing as expected.
 - **Open-source**: Fully open-source, allowing you to run the entire stack on your own servers, including [LiveKit server](https://github.com/livekit/livekit), one of the most widely used WebRTC media servers.
@@ -213,6 +214,32 @@ async def test_no_availability() -> None:
         )
 
 ```
+
+### Intelligent Interruption Handling
+
+The framework includes intelligent interruption handling that distinguishes between passive acknowledgements (e.g., "yeah", "ok", "hmm") and active interruptions (e.g., "stop", "wait", "no") based on whether the agent is currently speaking.
+
+**Key behavior:**
+- When the agent is **speaking**: Passive acknowledgements like "yeah", "ok", "hmm" are ignored, allowing the agent to continue speaking uninterrupted.
+- When the agent is **silent**: All user input is processed normally, including acknowledgements as valid responses.
+- Mixed input like "yeah wait a second" will trigger an interruption because it contains the keyword "wait".
+
+**Configuration options:**
+
+```python
+session = AgentSession(
+    # Enable/disable intelligent interruption filtering (default: True)
+    interruption_filter_enabled=True,
+    
+    # Custom list of words to ignore when agent is speaking
+    interruption_ignore_words=frozenset(["yeah", "ok", "hmm", "right"]),
+    
+    # Custom list of keywords that always trigger interruption
+    interruption_keywords=frozenset(["stop", "wait", "no", "hold on"]),
+)
+```
+
+The filter uses default lists if custom words are not provided. The default ignore list includes common acknowledgements like "yeah", "yes", "ok", "hmm", "uh-huh", "right", "i see", etc. The default interrupt keywords include "stop", "wait", "no", "pause", "actually", "but", "hold on", etc.
 
 ## Examples
 

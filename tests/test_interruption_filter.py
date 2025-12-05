@@ -33,7 +33,7 @@ def create_test_filter():
         "interruption_filter.py",
     )
 
-    with open(module_path) as f:
+    with open(module_path, encoding="utf-8") as f:
         code = f.read()
 
     # Update __name__ to use our mock module

@@ -103,10 +103,8 @@ DEFAULT_INTERRUPT_KEYWORDS: frozenset[str] = frozenset(
         "not",
         "never",
         "don't",
-        "cant",
         "can't",
         "won't",
-        "wont",
     ]
 )
 
@@ -245,12 +243,15 @@ class InterruptionFilter:
         remaining = normalized_text
 
         # First, try to match and remove phrases (longer patterns first)
+        # Use word boundary regex to avoid partial matches (e.g., "i see" shouldn't match "i seen")
         phrase_patterns = sorted(
             [w for w in self._config.ignore_words if " " in w], key=len, reverse=True
         )
 
         for phrase in phrase_patterns:
-            remaining = remaining.replace(phrase, " ")
+            # Use word boundary regex for phrase matching
+            pattern = r"\b" + re.escape(phrase) + r"\b"
+            remaining = re.sub(pattern, " ", remaining)
 
         # Now check if remaining words are all in ignore list
         remaining_words = remaining.split()
